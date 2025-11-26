@@ -26,7 +26,7 @@ Fredholm Equations of the First Kind](https://arxiv.org/abs/2009.09974).
 
 4. **Run the Image Deblurring Code:**
     ```bash
-   python run_smc.py --b 128 --sigma 0.02 --n_iter 100 --n_particles 5000 --orig_file BC.png --blur_file BC_blurred.png
+   python run_smc.py --b 128 --sigma 0.02 --n_iter 100 --n_particles 5000 --orig_file BC.png --blur_file BCblurred.png
    ```
 
 ### To test with a new image

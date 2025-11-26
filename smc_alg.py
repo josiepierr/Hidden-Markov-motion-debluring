@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.stats import norm
+from kde_smoothing import reconstruct_image_from_particles
 
 def pinky(y_in, x_in, image, n_samples):
     """
@@ -71,7 +72,7 @@ def optimal_bandwidth_ess(particles, weights):
 
 
 class SMCAlgorithm:
-    def __init__(self, n_particles, image, sigma, n_iter, b, epsilon):
+    def __init__(self, n_particles, image, original, sigma, n_iter, b, epsilon, save_every=10):
         """
         SMC for motion deblurring
         
@@ -85,6 +86,8 @@ class SMCAlgorithm:
             Scale parameter for the gaussian kernel
         image : ndarray
             Blurred and noisy image
+        original : ndarray
+            Original sharp image
         sigma : float
             Standard deviation for Normal approximating Dirac delta
         b : float
@@ -92,10 +95,13 @@ class SMCAlgorithm:
         """
         self.n_particles = n_particles
         self.image = image
+        self.original = original
         self.sigma = sigma
         self.img_shape = image.shape
         self.n_iter = n_iter
         self.epsilon = epsilon
+        self.reconstruction_errors = []
+        self.save_every = save_every  # Save reconstruction error every n iterations
 
         # Get dimension of image
         pixels = self.img_shape
@@ -192,6 +198,17 @@ class SMCAlgorithm:
         print("Starting SMC Algorithm")
         for _ in range(1, self.n_iter+1):
             self.step()
+            if self.n % self.save_every == 0:
+                reconstructed_image = reconstruct_image_from_particles(
+                    self.x[self.n, :],
+                    self.y[self.n, :],
+                    self.W[self.n, :],
+                    self.img_shape,
+                    self.epsilon
+                )
+                error = np.linalg.norm(reconstructed_image - self.original)
+                print(f'Reconstruction error at iteration {self.n}: {error:.6f}')
+                self.reconstruction_errors.append((self.n, error))
         ess_history = 1.0 / np.sum(self.W**2, axis=1)
-        return self.x, self.y, self.W, ess_history
+        return self.x, self.y, self.W, ess_history, self.reconstruction_errors
 

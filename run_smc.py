@@ -70,12 +70,14 @@ if __name__ == "__main__":
     smc_algo = SMCAlgorithm(
         n_particles=n_particles,
         image=image_h,
+        original=image,
         sigma=sigma,
         n_iter=n_iter,
         b=b,
-        epsilon=epsilon
+        epsilon=epsilon,
+        save_every=10
     )
-    x_particles, y_particles, weights, ess_history = smc_algo.run()
+    x_particles, y_particles, weights, ess_history, reconstruction_errors = smc_algo.run()
     print("SMC deblurring completed.")
     
     # Plot ESS history
@@ -84,6 +86,15 @@ if __name__ == "__main__":
     plt.title('Effective Sample Size over Iterations')
     plt.xlabel('Iteration')
     plt.ylabel('ESS')
+    plt.grid()
+    plt.show()
+
+    plt.figure()
+    iterations, errors = zip(*reconstruction_errors)
+    plt.plot(iterations, errors, marker='o')
+    plt.title('Reconstruction Error over Iterations')
+    plt.xlabel('Iteration')
+    plt.ylabel('Reconstruction Error (L2 Norm)')
     plt.grid()
     plt.show()
 
