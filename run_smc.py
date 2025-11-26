@@ -9,6 +9,7 @@ from blur import blurred_image, multiplicative_noise
 from kde_smoothing import reconstruct_image_from_particles
 from smc_alg import SMCAlgorithm
 import argparse
+from pathlib import Path
 
 # Example usage
 if __name__ == "__main__":
@@ -27,10 +28,10 @@ if __name__ == "__main__":
                         help="Number of particles used in SMC.")
     parser.add_argument("--epsilon", type=float, default=1e-3,
                         help="Smoothing parameter for reconstruction.")
-    parser.add_argument("--orig_path", type=str, required=True,
-                        help="Path to the original (sharp) image.")
-    parser.add_argument("--blur_path", type=str, required=True,
-                        help="Path to the blurred image.")
+    parser.add_argument("--orig_file", type=str, required=True,
+                        help="Name of the original (sharp) image file.")
+    parser.add_argument("--blur_file", type=str, required=True,
+                        help="Name of the blurred image file.")
     
     args = parser.parse_args()
 
@@ -40,8 +41,12 @@ if __name__ == "__main__":
     n_iter = args.n_iter  # number of time steps
     n_particles = args.n_particles  # number of particles
     epsilon = args.epsilon  # smoothing parameter
-    orig_path = args.orig_path
-    blur_path = args.blur_path
+    orig_filename = args.orig_file
+    blur_filename = args.blur_file
+
+    current_dir = Path(__file__).parent
+    orig_path = current_dir / "original_image" / orig_filename
+    blur_path = current_dir / "blurred_image" / blur_filename
     
     print("SMC Motion Deblurring - Python Implementation")
     print(f"Parameters: b={b}, sigma={sigma}, N={n_particles}, iterations={n_iter}")

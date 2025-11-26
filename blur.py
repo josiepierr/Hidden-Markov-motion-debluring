@@ -7,6 +7,7 @@ from skimage.io import imread, imsave
 from scipy.signal import convolve2d
 from scipy.ndimage import gaussian_filter1d
 from skimage import img_as_ubyte
+from pathlib import Path
 
 def blurred_images(image_f, b, sigma):
     """
@@ -157,8 +158,8 @@ def multiplicative_noise(image, alpha, beta):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Blur an image and add multiplicative noise.")
-    parser.add_argument("--im_path", type=str, required=True,
-                        help="Path to the input image (absolute or relative).")
+    parser.add_argument("--image_name", type=str, required=True,
+                        help="Name of the input image file (inside original_image folder).")
     parser.add_argument("--b", type=float, required=True,
                         help="Horizontal velocity for blur.")
     parser.add_argument("--sigma", type=float, required=True,
@@ -169,8 +170,10 @@ if __name__ == "__main__":
                         help="Noise probability.")
 
     args = parser.parse_args()
-
-    input_path = args.im_path
+    
+    current_dir = Path(__file__).parent
+    orig_folder = current_dir / "original_image"
+    input_path = orig_folder / args.image_name
     print(f"Loading image from {input_path}")
     image = imread(input_path)
     print(f"Image shape: {image.shape}")
@@ -191,9 +194,8 @@ if __name__ == "__main__":
     noisy_uint8 = img_as_ubyte(noisy)
 
     # Save output in same folder
-    in_dir = os.path.dirname(input_path)
-    in_name = os.path.basename(input_path)
-    output_path = os.path.join(in_dir, f"blurred_noisy_{in_name}")
+    blur_folder = current_dir / "blurred_image"
+    output_path = blur_folder / f"blurred_{args.image_name}"
     imsave(output_path, noisy_uint8)
 
     print(f"Saved result to {output_path}")
