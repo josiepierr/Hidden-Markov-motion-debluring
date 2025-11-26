@@ -8,18 +8,40 @@ import matplotlib.pyplot as plt
 from blur import blurred_image, multiplicative_noise
 from kde_smoothing import reconstruct_image_from_particles
 from smc_alg import SMCAlgorithm
+import argparse
 
 # Example usage
 if __name__ == "__main__":
     # Set random seed for reproducibility
     np.random.seed(42)
     
+    parser = argparse.ArgumentParser(description="SMC Motion Deblurring")
+
+    parser.add_argument("--b", type=float, required=True,
+                        help="Horizontal motion speed for the blur model.")
+    parser.add_argument("--sigma", type=float, required=True,
+                        help="Gaussian blur standard deviation.")
+    parser.add_argument("--n_iter", type=int, required=True,
+                        help="Number of SMC iterations.")
+    parser.add_argument("--n_particles", type=int, required=True,
+                        help="Number of particles used in SMC.")
+    parser.add_argument("--epsilon", type=float, default=1e-3,
+                        help="Smoothing parameter for reconstruction.")
+    parser.add_argument("--orig_path", type=str, required=True,
+                        help="Path to the original (sharp) image.")
+    parser.add_argument("--blur_path", type=str, required=True,
+                        help="Path to the blurred image.")
+    
+    args = parser.parse_args()
+
     # Parameters
-    b = 128  # speed of constant motion
-    sigma = 0.02  # standard deviation of normal
-    n_iter = 100  # number of time steps
-    n_particles = 5000  # number of particles
-    epsilon = 1e-3  # smoothing parameter
+    b = args.b  # speed of constant motion
+    sigma = args.sigma  # standard deviation of normal
+    n_iter = args.n_iter  # number of time steps
+    n_particles = args.n_particles  # number of particles
+    epsilon = args.epsilon  # smoothing parameter
+    orig_path = args.orig_path
+    blur_path = args.blur_path
     
     print("SMC Motion Deblurring - Python Implementation")
     print(f"Parameters: b={b}, sigma={sigma}, N={n_particles}, iterations={n_iter}")
@@ -27,19 +49,17 @@ if __name__ == "__main__":
     print("To use: load an image, blur it, add noise, then run SMC deblurring.")
 
     # Load image
-    image = io.imread('BC.png')
+    image = io.imread(orig_path)
     image = img_as_float(image)
     if image.ndim == 3:
         image = image[:, :, 0]  # Convert to grayscale
     
     print(f"Original image shape: {image.shape}")
     # Import blurred image
-    image_h = io.imread('BCblurred.png')
+    image_h = io.imread(blur_path)
     image_h = img_as_float(image_h)
     if image_h.ndim == 3:
         image_h = image_h[:, :, 0]  # Convert to grayscale
-    # Add multiplicative noise
-    # image_h_noisy = multiplicative_noise(image_h, alpha=0.1, beta=0.1)
 
     # Run SMC deblurring
     smc_algo = SMCAlgorithm(

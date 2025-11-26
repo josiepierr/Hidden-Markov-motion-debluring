@@ -99,9 +99,11 @@ class SMCAlgorithm:
 
         # Get dimension of image
         pixels = self.img_shape
+        print(f'Image dimensions: {pixels[0]} x {pixels[1]}')
         
         # Normalize velocity
-        self.b = b / 300
+        # self.b = b / 300
+        self.b = b / pixels[0]  # Normalize by image height
         
         # x is in [-1, 1]
         self.x_in = np.linspace(-1 + 1/pixels[1], 1 - 1/pixels[1], pixels[1])
