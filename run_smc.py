@@ -32,6 +32,8 @@ if __name__ == "__main__":
                         help="Name of the original (sharp) image file.")
     parser.add_argument("--blur_file", type=str, required=True,
                         help="Name of the blurred image file.")
+    parser.add_argument("--save_every", type=int, default=10,
+                        help="Frequency of saving reconstruction errors.")
     
     args = parser.parse_args()
 
@@ -43,6 +45,7 @@ if __name__ == "__main__":
     epsilon = args.epsilon  # smoothing parameter
     orig_filename = args.orig_file
     blur_filename = args.blur_file
+    save_every = args.save_every
 
     current_dir = Path(__file__).parent
     orig_path = current_dir / "original_image" / orig_filename
@@ -75,7 +78,7 @@ if __name__ == "__main__":
         n_iter=n_iter,
         b=b,
         epsilon=epsilon,
-        save_every=10
+        save_every=save_every
     )
     x_particles, y_particles, weights, ess_history, reconstruction_errors = smc_algo.run()
     print("SMC deblurring completed.")

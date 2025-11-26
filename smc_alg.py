@@ -109,7 +109,7 @@ class SMCAlgorithm:
         
         # Normalize velocity
         # self.b = b / 300
-        self.b = b / pixels[0]  # Normalize by image height
+        self.b = b * 2 / pixels[1]  # Normalize by image height
         
         # x is in [-1, 1]
         self.x_in = np.linspace(-1 + 1/pixels[1], 1 - 1/pixels[1], pixels[1])

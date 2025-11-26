@@ -29,6 +29,9 @@ Fredholm Equations of the First Kind](https://arxiv.org/abs/2009.09974).
    python run_smc.py --b 128 --sigma 0.02 --n_iter 100 --n_particles 5000 --orig_file BC.png --blur_file BCblurred.png
    ```
 
+Additional argument:
+**--save_every** — *int (default=10)*, frequency of saving reconstruction error 
+
 ### To test with a new image
 
 1. **Place your image in the original_image folder**
