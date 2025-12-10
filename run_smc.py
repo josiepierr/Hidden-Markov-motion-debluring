@@ -3,6 +3,7 @@ from scipy.stats import norm
 from skimage import io
 from skimage.util import img_as_float
 import matplotlib.pyplot as plt
+import time
 
 
 from blur import blurred_image, multiplicative_noise
@@ -80,8 +81,11 @@ if __name__ == "__main__":
         epsilon=epsilon,
         save_every=save_every
     )
+
+    start = time.perf_counter()
     x_particles, y_particles, weights, ess_history, reconstruction_errors = smc_algo.run()
-    print("SMC deblurring completed.")
+    end = time.perf_counter()
+    print(f"SMC deblurring completed in {end - start:.2f} seconds.")
     
     # Plot ESS history
     plt.figure()
@@ -92,14 +96,15 @@ if __name__ == "__main__":
     plt.grid()
     plt.show()
 
-    plt.figure()
-    iterations, errors = zip(*reconstruction_errors)
-    plt.plot(iterations, errors, marker='o')
-    plt.title('Reconstruction Error over Iterations')
-    plt.xlabel('Iteration')
-    plt.ylabel('Reconstruction Error (L2 Norm)')
-    plt.grid()
-    plt.show()
+    if reconstruction_errors:
+        plt.figure()
+        iterations, errors = zip(*reconstruction_errors)
+        plt.plot(iterations, errors, marker='o')
+        plt.title('Reconstruction Error over Iterations')
+        plt.xlabel('Iteration')
+        plt.ylabel('Reconstruction Error (L2 Norm)')
+        plt.grid()
+        plt.show()
 
     # Reconstruct image from final particles
     reconstructed_image = reconstruct_image_from_particles(
