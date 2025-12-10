@@ -9,59 +9,6 @@ from scipy.ndimage import gaussian_filter1d
 from skimage import img_as_ubyte
 from pathlib import Path
 
-def blurred_images(image_f, b, sigma):
-    """
-    Blur caused by constant speed motion
-    
-    Parameters:
-    -----------
-    image_f : ndarray
-        Original sharp image
-    b : float
-        Speed of motion in horizontal direction
-    sigma : float
-        Variance of gaussian describing motion in vertical direction
-    
-    Returns:
-    --------
-    image_h : ndarray
-        Blurred image
-    """
-    # Convert to grayscale and double
-    if len(image_f.shape) == 3:
-        image_f = image_f[:, :, 0]
-    image_f = img_as_float(image_f)
-    
-    # Image dimensions
-    pixels = image_f.shape
-    
-    # Normalize velocity
-    b = b / pixels[0]
-    
-    # Create empty image
-    image_h = np.zeros(pixels)
-    
-    # Set coordinate system over image
-    # x is in [-1, 1]
-    eval_x = np.linspace(-1 + 1/pixels[1], 1 - 1/pixels[1], pixels[1])
-    # y is in [-0.5, 0.5]
-    eval_y = np.linspace(0.5 - 1/pixels[0], -0.5 + 1/pixels[0], pixels[0])
-    
-    # Build grid with these coordinates
-    grid_x, grid_y = np.meshgrid(eval_x, eval_y)
-    
-    for i in range(pixels[1]):
-        u = eval_x[i]
-        for j in range(pixels[0]):
-            v = eval_y[j]
-            # New pixel value after blur
-            normal_component = norm.pdf(v, loc=grid_y, scale=sigma)
-            uniform_component = uniform_pdf(grid_x - u, -b/2, b/2)
-            image_h[j, i] = np.sum(image_f * normal_component * uniform_component)
-    
-    # Normalize image to [0, 1]
-    image_h = (image_h - image_h.min()) / (image_h.max() - image_h.min())
-    return image_h
 
 def blurred_image(image_f, b, sigma):
     """
