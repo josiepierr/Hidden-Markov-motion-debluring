@@ -83,7 +83,7 @@ if __name__ == "__main__":
     )
 
     start = time.perf_counter()
-    x_particles, y_particles, weights, ess_history, reconstruction_errors = smc_algo.run()
+    x_particles, y_particles, weights, ess_history, reconstruction_errors, _ = smc_algo.run()
     end = time.perf_counter()
     print(f"SMC deblurring completed in {end - start:.2f} seconds.")
     

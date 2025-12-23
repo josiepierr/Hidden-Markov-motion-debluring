@@ -246,6 +246,7 @@ class SMCAlgorithm:
         self.n_iter = n_iter
         self.epsilon = epsilon
         self.reconstruction_errors = []
+        self.fix_point_errors = []
         self.save_every = save_every  # Save reconstruction error every n iterations
 
         # Get dimension of image
@@ -272,6 +273,13 @@ class SMCAlgorithm:
         self.W[0, :] = 1.0 / n_particles
 
         self.n = 0  # Current iteration
+        self.previous_reconstructed = reconstruct_image_from_particles(
+                    self.x[self.n, :],
+                    self.y[self.n, :],
+                    self.W[self.n, :],
+                    self.img_shape,
+                    self.epsilon
+                ) # For fix-point error calculation
 
 
     def step(self):
@@ -358,6 +366,10 @@ class SMCAlgorithm:
             Particle weights (n_iter x n_particles)
         ess_history : ndarray
             Effective sample size at each iteration
+        reconstruction_errors : list of tuples
+            List of (iteration, reconstruction error) tuples
+        fix_point_errors : list of tuples
+            List of (iteration, error between previous and current iterate) tuples
         """
         print("Starting SMC Algorithm")
         for _ in range(1, self.n_iter+1):
@@ -371,8 +383,11 @@ class SMCAlgorithm:
                     self.epsilon
                 )
                 error = np.linalg.norm(reconstructed_image - self.original)
+                fix_point_error = np.linalg.norm(reconstructed_image - self.previous_reconstructed)
+                self.previous_reconstructed = reconstructed_image
                 print(f'Reconstruction error at iteration {self.n}: {error:.6f}')
+                print(f'Fix-point error at iteration {self.n}: {fix_point_error:.6f}')
                 self.reconstruction_errors.append((self.n, error))
+                self.fix_point_errors.append((self.n, fix_point_error))
         ess_history = 1.0 / np.sum(self.W**2, axis=1)
-        return self.x, self.y, self.W, ess_history, self.reconstruction_errors
-
+        return self.x, self.y, self.W, ess_history, self.reconstruction_errors, self.fix_point_errors
