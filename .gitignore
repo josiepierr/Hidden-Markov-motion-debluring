@@ -1,3 +1,4 @@
 venv/
 stock_images/
 report/
+.DS_Store
