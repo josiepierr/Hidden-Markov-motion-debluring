@@ -52,27 +52,13 @@ def mult_resample(weights, n):
     indices = np.random.choice(n, size=n, p=weights)
     return indices
 
-def hNn(y_samples, x_particles, y_particles, weights, b, sigma):
-    """
-    Compute h^N_n for each y_j sample.
-    h^N_n(y_j) = (1/N) sum_{i=1}^N g(y_j | x_i)
-    which is an approximation of the integral f_n(z) g(y_j | z) dz
-    """
-    n_particles = len(x_particles)
-    assert y_samples.shape[0] == n_particles
-    h_n = np.zeros(n_particles)
-    for j in range(n_particles):
-        normal_part = norm.pdf(y_samples[j, 0] - y_particles, loc=0, scale=sigma)
-        uniform_part = ((x_particles - y_samples[j, 1] <= b/2) & 
-                        (x_particles - y_samples[j, 1] >= -b/2)).astype(float) / b
-        h_n[j] = np.mean(weights * normal_part * uniform_part)
-
-    return h_n
 
 @njit(parallel=True, fastmath=True)
 def hNn_numba(y_samples, x_particles, y_particles, weights, b, sigma):
     """
-    Numba-accelerated h^N_n. Equivalent to hNn but avoids SciPy.
+    Compute h^N_n for each y_j sample.
+    h^N_n(y_j) = (1/N) sum_{i=1}^N g(y_j | x_i)
+    which is an approximation of the integral f_n(z) g(y_j | z) dz
     """
     n_particles = x_particles.shape[0]
     h_n = np.zeros(n_particles, dtype=np.float64)
@@ -94,50 +80,6 @@ def hNn_numba(y_samples, x_particles, y_particles, weights, b, sigma):
         h_n[j] = acc
     return h_n
 
-def hNn_vectorized(y_samples, x_particles, y_particles, weights, b, sigma):
-    """
-    Vectorized computation of h^N_n for each y_j sample.
-    h^N_n(y_j) = (1/N) sum_{i=1}^N g(y_j | x_i)
-    which is an approximation of the integral f_n(z) g(y_j | z) dz
-    """
-    n_particles = len(x_particles)
-    assert y_samples.shape[0] == n_particles
-
-    # Rows correspond to y_samples entries, columns to particles
-    dy = y_samples[:, 0][:, None] - y_particles[None, :]
-    dx = x_particles[None, :] - y_samples[:, 1][:, None]
-
-    normal_mat = norm.pdf(dy, loc=0, scale=sigma)
-    uniform_mat = (np.abs(dx) <= (b / 2)).astype(float) / b
-
-    # Mean over columns (particles), weighted by weights
-    h_n = np.mean(normal_mat * uniform_mat * weights[None, :], axis=1)
-
-    return h_n
-
-def weight_update(y_samples, x_particles, y_particles, weights, h_n, b, sigma):
-    """
-    Update weights at iteration n
-    """
-    n_particles = len(x_particles)
-    new_weights = np.zeros(n_particles)
-    for i in range(n_particles):
-            g = (norm.pdf(y_samples[:, 0] - y_particles[i], loc=0, scale=sigma) *
-                 ((x_particles[i] - y_samples[:, 1] <= b/2) & 
-                  (x_particles[i] - y_samples[:, 1] >= -b/2)).astype(float) / b)
-            
-            # Potential at time n
-            potential = np.mean(g / (h_n + 1e-10))  # Add small constant to avoid division by zero
-            
-            # Check for NaN
-            if np.isnan(potential):
-                potential = 0
-            
-            # Update weight
-            new_weights[i] = weights[i] * potential
-    # Normalize weights
-    new_weights = new_weights / (new_weights.sum() + 1e-10)
-    return new_weights
 
 @njit(parallel=True, fastmath=True)
 def weight_update_numba(y_samples, x_particles, y_particles, weights, h_n, b, sigma):
@@ -172,48 +114,6 @@ def weight_update_numba(y_samples, x_particles, y_particles, weights, h_n, b, si
     if s > 0.0:
         new_weights /= s
     return new_weights
-
-def weight_update_vectorized(y_samples, x_particles, y_particles, weights, h_n, b, sigma):
-    """
-    Vectorized weight update at iteration n
-    """
-    n_particles = len(x_particles)
-
-    dy = y_samples[:, 0][:, None] - y_particles[None, :]
-    dx = x_particles[None, :] - y_samples[:, 1][:, None]
-
-    normal_mat = norm.pdf(dy, loc=0, scale=sigma)
-    uniform_mat = (np.abs(dx) <= (b / 2)).astype(float) / b
-
-    denom = h_n[:, None] + 1e-10  # avoid division by zero
-    ratios = (normal_mat * uniform_mat) / denom
-
-    potentials = ratios.mean(axis=0)
-    potentials = np.nan_to_num(potentials, nan=0.0, posinf=0.0, neginf=0.0)
-
-    # Update and normalize weights
-    new_weights = weights * potentials
-    new_weights = new_weights / (new_weights.sum() + 1e-10)
-
-    return new_weights
-
-def optimal_bandwidth_ess(particles, weights):
-    """
-    Calculate optimal bandwidth using effective sample size
-    Matches MATLAB's optimal_bandwidthESS function
-    """
-    # Weighted mean
-    weighted_mean = np.sum(weights * particles)
-    # Weighted variance
-    weighted_var = np.sum(weights * (particles - weighted_mean)**2)
-    weighted_std = np.sqrt(weighted_var)
-    
-    # Effective sample size
-    n_eff = 1.0 / np.sum(weights**2)
-    
-    # Silverman's rule of thumb
-    bandwidth = 1.06 * weighted_std * n_eff**(-0.2)
-    return bandwidth
 
 
 class SMCAlgorithm:
@@ -250,17 +150,17 @@ class SMCAlgorithm:
         self.save_every = save_every  # Save reconstruction error every n iterations
 
         # Get dimension of image
-        pixels = self.img_shape
-        print(f'Image dimensions: {pixels[0]} x {pixels[1]}')
+        H, W = self.img_shape
+        print(f'Image dimensions: {H} x {W}')
+        ymax = H/W
         
         # Normalize velocity
-        # self.b = b / 300
-        self.b = b * 2 / pixels[1]  # Normalize by image height
+        self.b = b * 2 / W  # Normalize by image width to match x in [-1, 1]
         
         # x is in [-1, 1]
-        self.x_in = np.linspace(-1 + 1/pixels[1], 1 - 1/pixels[1], pixels[1])
-        # y is in [-0.5, 0.5]
-        self.y_in = np.linspace(0.5 - 1/pixels[0], -0.5 + 1/pixels[0], pixels[0])
+        self.x_in = np.linspace(-1 + 1/W, 1 - 1/W, W)
+        # y is in [-ymax, ymax]
+        self.y_in = np.linspace(ymax - 1/H, -ymax + 1/H, H)
         
         # Initialize particle arrays
         self.x = np.zeros((n_iter+1, n_particles))
@@ -269,7 +169,7 @@ class SMCAlgorithm:
         
         # Sample random particles for time step n = 1
         self.x[0, :] = 2 * np.random.rand(n_particles) - 1  # uniform in [-1, 1]
-        self.y[0, :] = np.random.rand(n_particles) - 0.5    # uniform in [-0.5, 0.5]
+        self.y[0, :] = ymax * (2 * np.random.rand(n_particles) - 1)  # uniform in [-ymax, ymax]
         self.W[0, :] = 1.0 / n_particles
 
         self.n = 0  # Current iteration
@@ -303,47 +203,16 @@ class SMCAlgorithm:
             self.x[self.n, :] = self.x[self.n-1, :]
             self.y[self.n, :] = self.y[self.n-1, :]
             self.W[self.n, :] = self.W[self.n-1, :]
-        
-        """ 
-        # Compute h^N_n for each y_j
-        h_n = hNn(h_sample, self.x[self.n, :], self.y[self.n, :], self.W[self.n, :], self.b, self.sigma)
-        """
 
-        # Vectorized computation of h_n over all j
-        # h_n = hNn_vectorized(h_sample, self.x[self.n, :], self.y[self.n, :], self.W[self.n, :], self.b, self.sigma)
+        # Compute h^N_n for each y_j
         h_n = hNn_numba(h_sample, self.x[self.n, :], self.y[self.n, :], self.W[self.n, :], self.b, self.sigma)
         
         
         # Apply Markov kernel
         self.x[self.n, :] = self.x[self.n, :] + self.epsilon * np.random.randn(self.n_particles)
         self.y[self.n, :] = self.y[self.n, :] + self.epsilon * np.random.randn(self.n_particles)
-        
-        """
+
         # Update weights
-        self.W[self.n, :] = weight_update(
-            h_sample,
-            self.x[self.n, :],
-            self.y[self.n, :],
-            self.W[self.n, :],
-            h_n,
-            self.b,
-            self.sigma,
-        )
-        """
-
-        # Vectorized weight update
-        """
-        self.W[self.n, :] = weight_update_vectorized(
-            h_sample,
-            self.x[self.n, :], # Post-kernel x particles
-            self.y[self.n, :], # Post-kernel y particles
-            self.W[self.n, :], # Previous weights
-            h_n,
-            self.b,
-            self.sigma,
-        )
-        """
-
         self.W[self.n, :] = weight_update_numba(
             h_sample,
             self.x[self.n, :], # Post-kernel x particles

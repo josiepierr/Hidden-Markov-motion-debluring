@@ -54,7 +54,6 @@ if __name__ == "__main__":
     
     print("SMC Motion Deblurring - Python Implementation")
     print(f"Parameters: b={b}, sigma={sigma}, N={n_particles}, iterations={n_iter}")
-    print("\nThis is a translation of the MATLAB code from the Fredholm equation paper.")
     print("To use: load an image, blur it, add noise, then run SMC deblurring.")
 
     # Load image

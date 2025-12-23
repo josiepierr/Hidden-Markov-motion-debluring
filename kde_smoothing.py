@@ -88,9 +88,10 @@ def reconstruct_image_from_particles(x_particles, y_particles, weights, image_sh
         Reconstructed image normalized to [0, 1]
     """
     height, width = image_shape
+    ymax = height / width
 
     eval_x = np.linspace(-1 + 1 / width, 1 - 1 / width, width)
-    eval_y = np.linspace(0.5 - 1 / height, -0.5 + 1 / height, height)
+    eval_y = np.linspace(ymax - 1 / height, -ymax + 1 / height, height)
 
     grid_x, grid_y = np.meshgrid(eval_x, eval_y)
 
