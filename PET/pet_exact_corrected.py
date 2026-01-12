@@ -27,7 +27,7 @@ epsilon = 1e-03
 sigma = 0.02
 tolerance = 15
 
-print(f"\n📊 CONFIGURATION:")
+print(f"\n CONFIGURATION:")
 print(f" • pixels: {pixels}x{pixels}")
 print(f" • N_particles: {N}")
 print(f" • N_iterations: {Niter}")
@@ -39,7 +39,7 @@ print(f" • tolerance_window: {tolerance}")
 # CREATE SHEPP-LOGAN PHANTOM
 # =============================================================================
 
-print(f"\n📷 Creating Shepp-Logan phantom...")
+print(f"\n Creating Shepp-Logan phantom...")
 start = time.time()
 
 phantom = shepp_logan_phantom()
@@ -54,7 +54,7 @@ print(f" ✓ Created in {time.time()-start:.3f}s")
 # GENERATE SINOGRAM WITH POISSON NOISE (CORRECTED)
 # =============================================================================
 
-print(f"\n📡 Generating sinogram...")
+print(f"\n Generating sinogram...")
 start = time.time()
 
 # Generate angles
@@ -82,7 +82,7 @@ print(f" ✓ Noisy Radon range: [{noisyR.min():.6f}, {noisyR.max():.6f}]")
 print(f" ✓ Non-zero elements: {np.sum(noisyR > 0)} / {noisyR.size}")
 
 # ========== DIAGNOSTICS ==========
-print(f"\n📊 Sinogram stats:")
+print(f"\n Sinogram stats:")
 print(f"  Min: {noisyR.min()}")
 print(f"  Max: {noisyR.max()}")
 print(f"  Mean: {noisyR.mean():.6f}")
@@ -95,7 +95,7 @@ print(f" ✓ Sinogram created in {time.time()-start:.3f}s")
 # VISUALIZATION
 # =============================================================================
 
-print(f"\n📊 Creating visualizations...")
+print(f"\n Creating visualizations...")
 
 fig, axes = plt.subplots(1, 3, figsize=(16, 4))
 
@@ -124,7 +124,7 @@ plt.tight_layout()
 plt.savefig('00_phantom_and_sinogram.png', dpi=150, bbox_inches='tight')
 print(f" ✓ Saved: 00_phantom_and_sinogram.png")
 
-print(f"\n✅ SETUP COMPLETE!")
+print(f"\n SETUP COMPLETE!")
 print(f" All parameters match MATLAB code exactly.")
 print(f" Sinograms are VALID (not dead/black).")
 print(f" Ready for SMC algorithm.\n")
@@ -138,7 +138,7 @@ np.save('sinogram_clean.npy', R)
 np.save('sinogram_noisy.npy', noisyR)
 np.save('angles.npy', phi_rad)
 
-print(f"📁 Saved numpy arrays:")
+print(f" Saved numpy arrays:")
 print(f" • phantom.npy")
 print(f" • sinogram_clean.npy")
 print(f" • sinogram_noisy.npy")
