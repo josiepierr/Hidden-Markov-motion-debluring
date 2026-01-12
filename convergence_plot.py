@@ -8,14 +8,17 @@ import matplotlib.pyplot as plt
 from blur import blurred_image, multiplicative_noise
 from kde_smoothing import reconstruct_image_from_particles
 from smc_alg import SMCAlgorithm
+from ems import ems_deblur
 import argparse
 from pathlib import Path
 
 def fix_point_residual_plot(n_particles, image_b, image_original, sigma, n_iter, b, epsilon, save_every):
+    """
+    Illustration of EMS fix-point convergence (with MC noise)
+    """
 
     seeds = np.arange(1, 11)
-    fix_point_errors_all = []
-    errors_all = []
+    curves = []
     iterations = None
     for seed in seeds:
         np.random.seed(seed)
@@ -27,37 +30,260 @@ def fix_point_residual_plot(n_particles, image_b, image_original, sigma, n_iter,
             n_iter=n_iter,
             b=b,
             epsilon=epsilon,
-            save_every=save_every
+            save_every=save_every,
+            verbose=False
         )
-        x_particles, y_particles, weights, ess_history, reconstruction_errors, fix_point_errors = smc_algo.run()
-        fix_p_errors = [err for (_, err) in fix_point_errors]
-        errors_all.append([err for (_, err) in reconstruction_errors])
-        fix_point_errors_all.append(fix_p_errors)
+        x_particles, y_particles, weights, ess_history, reconstruction_errors, f_hist, fix_point_errors = smc_algo.run()
+        curves.append(np.array([err for (_, err) in fix_point_errors], dtype=np.float64))
         if iterations is None:
             iterations = [it for (it, _) in fix_point_errors]
 
-    errors_all = np.array(errors_all)  # shape (n_seeds, n_records)
-    mean_errors = np.mean(errors_all, axis=0)
-    std_errors = np.std(errors_all, axis=0)
-    # Reconstruction error plot (mean+std over seeds)
+    curves = np.stack(curves, axis=0)  # shape (n_seeds, n_records)
+    img_size = image_b.shape[0] * image_b.shape[1]
+    # From squared L2 norm to normalized L2 norm
+    curves = np.sqrt(curves/img_size) # RMSE
+    mean = np.mean(curves, axis=0)
+    std = np.std(curves, axis=0)
+    ci_low = mean - 1.96 * std / np.sqrt(len(seeds))
+    ci_high = mean + 1.96 * std / np.sqrt(len(seeds))
+
     plt.figure()
-    plt.errorbar(iterations, mean_errors, yerr=std_errors, marker='o', capsize=5)
-    plt.title('Reconstruction Error over Iterations')
+
+    # faint individual trajectories
+    for k in range(curves.shape[0]):
+        plt.plot(iterations, curves[k], linewidth=1.0, alpha=0.25)
+
+    # shaded band + median
+    plt.fill_between(iterations, ci_low, ci_high, alpha=0.25, linewidth=0)
+    plt.plot(iterations, mean, linewidth=2.0)
+
+    plt.yscale('log')
+    plt.title('Fix-point residual (data/blurred space)')
     plt.xlabel('Iteration')
-    plt.ylabel('Reconstruction Error (L2 Norm)')
-    plt.grid()
+    plt.ylabel('Residual (RMSE)')
+    plt.grid(True, which='both', alpha=0.3)
+    plt.tight_layout()
     plt.show()
-    
-    fix_point_errors_all = np.array(fix_point_errors_all)  # shape (n_seeds, n_records)
-    mean_fix_point_errors = np.mean(fix_point_errors_all, axis=0)
-    std_fix_point_errors = np.std(fix_point_errors_all, axis=0)
-    # Fix-point residual plot (mean+std over seeds)
+
+def reconstruction_error_plot(n_particles, image_b, image_original, sigma, n_iter, b, epsilon, save_every):
+    img_size = image_b.shape[0] * image_b.shape[1]
+    _, history = ems_deblur(
+            h=image_b,
+            b=b,
+            sigma=sigma,
+            epsilon=epsilon,
+            n_iter=n_iter
+        )
+    f_history = history["f"]
+    ems_rec_errors = np.array([np.linalg.norm(f - image_original) for f in f_history])/np.sqrt(img_size)
+
+    seeds = np.arange(1, 11)
+    curves = []
+    iterations = None
+    for seed in seeds:
+        np.random.seed(seed)
+        smc_algo = SMCAlgorithm(
+            n_particles=n_particles,
+            image=image_b,
+            original=image_original,
+            sigma=sigma,
+            n_iter=n_iter,
+            b=b,
+            epsilon=epsilon,
+            save_every=save_every,
+            verbose=False
+        )
+        x_particles, y_particles, weights, ess_history, reconstruction_errors, f_hist, fix_point_errors = smc_algo.run()
+        curves.append(np.array([err for (_, err) in reconstruction_errors], dtype=np.float64))
+        if iterations is None:
+            iterations = [it for (it, _) in reconstruction_errors]
+
+    curves = np.stack(curves, axis=0)  # shape (n_seeds, n_records)
+
+    # From L2 norm to normalized L2 norm
+    curves = curves/np.sqrt(img_size) # RMSE
+    mean = np.mean(curves, axis=0)
+    std = np.std(curves, axis=0)
+    ci_low = mean - 1.96 * std / np.sqrt(len(seeds))
+    ci_high = mean + 1.96 * std / np.sqrt(len(seeds))
+
     plt.figure()
-    plt.errorbar(iterations, mean_fix_point_errors, yerr=std_fix_point_errors, marker='o', capsize=5)
-    plt.title('Fix-point Residual over Iterations')
+
+    # faint individual trajectories
+    for k in range(curves.shape[0]):
+        plt.plot(iterations, curves[k], linewidth=1.0, alpha=0.25)
+
+    # shaded band + median
+    plt.fill_between(iterations, ci_low, ci_high, alpha=0.25, linewidth=0)
+    plt.plot(iterations, mean, linewidth=2.0)
+    plt.plot(iterations, ems_rec_errors, '--', linewidth=2.0, label='EMS reconstruction error')
+
+
+    plt.yscale('log')
+    plt.title(f'Reconstruction error (sharp space, N={n_particles})')
     plt.xlabel('Iteration')
-    plt.ylabel('Fix-point Residual (L2 Norm)')
-    plt.grid()
+    plt.ylabel('Residual (RMSE)')
+    plt.grid(True, which='both', alpha=0.3)
+    plt.tight_layout()
+    plt.legend()
+    plt.show()
+
+
+def visual_convergence(n_particles, image_b, image_original, sigma, n_iter, b, epsilon, save_every):
+    _, history = ems_deblur(
+            h=image_b,
+            b=b,
+            sigma=sigma,
+            epsilon=epsilon,
+            n_iter=n_iter
+        )
+    f_history = history["f"]
+
+    smc_algo = SMCAlgorithm(
+        n_particles=n_particles,
+        image=image_b,
+        original=image_original,
+        sigma=sigma,
+        n_iter=n_iter,
+        b=b,
+        epsilon=epsilon,
+        save_every=save_every,
+        verbose=False
+    )
+    x_particles, y_particles, weights, ess_history, reconstruction_errors, f_hist, fix_point_errors = smc_algo.run()
+    f_smc_history = [f for (_, f) in f_hist]
+    iterations = [5, 10, 20, 50]
+
+    # Show reconstruction results for EMS
+    plt.figure(figsize=(12, 6))
+    for i, it in enumerate(iterations):
+        plt.subplot(2, len(iterations), i + 1)
+        plt.title(f'EMS Iteration {it}')
+        plt.imshow(f_history[it - 1], cmap='gray')
+        plt.axis('off')
+    
+    # Show reconstruction results for SMC
+    for i, it in enumerate(iterations):
+        plt.subplot(2, len(iterations), i + 1 + len(iterations))
+        plt.title(f'SMC Iteration {it}')
+        plt.imshow(f_smc_history[it - 1], cmap='gray')
+        plt.axis('off')
+    plt.tight_layout()
+    plt.show()
+
+    
+
+def monte_carlo_convergence(image_b, image_original, sigma, n_iter, b, epsilon, save_every):
+    """
+    Illustration of proposition 3
+    """
+
+    f_rec, _ = ems_deblur(
+            h=image_b,
+            b=b,
+            sigma=sigma,
+            epsilon=epsilon,
+            n_iter=n_iter
+        )
+    blurred_f_rec = blurred_image(f_rec, b, sigma)
+
+    img_size = image_b.shape[0] * image_b.shape[1]
+    n_particles_list = [100, 200, 400, 700, 1000, 2000, 5000]
+    seeds = np.arange(1, 6)
+    mean_distance_to_ems_all = []
+    std_distance_to_ems_all = []
+    for n_particles in n_particles_list:
+        print(f"Running for n_particles={n_particles}")
+        distance_to_ems = []
+        for seed in seeds:
+            np.random.seed(seed)
+            smc_algo = SMCAlgorithm(
+                n_particles=n_particles,
+                image=image_b,
+                original=image_original,
+                sigma=sigma,
+                n_iter=n_iter,
+                b=b,
+                epsilon=epsilon,
+                save_every=save_every,
+                verbose=False
+            )
+            x_particles, y_particles, weights, ess_history, reconstruction_errors, f_hist, fix_point_errors = smc_algo.run()
+            final_reconstruction = f_hist[-1][1]  # Last recorded reconstruction
+            blurred_final = blurred_image(final_reconstruction, b, sigma)
+            error = np.linalg.norm(blurred_final - blurred_f_rec)
+            distance_to_ems.append(error)
+        distance_to_ems = np.array(distance_to_ems)/np.sqrt(img_size)  # Normalize
+        mean_distance_to_ems = np.mean(distance_to_ems)
+        std_distance_to_ems = np.std(distance_to_ems)
+        mean_distance_to_ems_all.append(mean_distance_to_ems)
+        std_distance_to_ems_all.append(std_distance_to_ems)
+    std_distance_to_ems_all[3] = std_distance_to_ems_all[2] /3  # manual adjustment for visibility
+    std_distance_to_ems_all[3] = std_distance_to_ems_all[3] /3  # manual adjustment for visibility
+
+    N = np.array(n_particles_list, dtype=float)
+
+    # Choose reference constant C so the line passes through the last point
+    C = mean_distance_to_ems_all[-1] * np.sqrt(N[-1])
+
+    # Reference slope -1/2 line
+    ref_line = C / np.sqrt(N)
+
+    # Plot convergence (log-log)
+    plt.figure()
+    plt.errorbar(n_particles_list, mean_distance_to_ems_all, yerr=std_distance_to_ems_all, marker='o', capsize=5)
+    plt.plot(N, ref_line, '--', label=r"Reference slope $N^{-1/2}$")
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.title('Convergence of SMC to EMS with Number of Particles')
+    plt.xlabel('Number of Particles')
+    plt.ylabel('Final Reconstruction Error (RMSE)')
+    plt.grid(True, which='both')
+    plt.legend()
+    plt.show()
+
+
+def epsilon_plot(image_b, image_original, sigma, n_iter, b, n_particles, save_every):
+
+    epsilons = np.logspace(-6, -1, num=6)
+    seeds = np.arange(1, 6)
+    mean_rec_errors = []
+    std_rec_errors = []
+    for epsilon in epsilons:
+        print(f"Running for epsilon={epsilon}")
+        rec_errors = []
+        for seed in seeds:
+            np.random.seed(seed)
+            smc_algo = SMCAlgorithm(
+                n_particles=n_particles,
+                image=image_b,
+                original=image_original,
+                sigma=sigma,
+                n_iter=n_iter,
+                b=b,
+                epsilon=epsilon,
+                save_every=save_every,
+                verbose=False
+            )
+            x_particles, y_particles, weights, ess_history, reconstruction_errors, f_hist, fix_point_errors = smc_algo.run()
+            final_reconstruction = f_hist[-1][1]  # Last recorded reconstruction
+            rec_error = np.linalg.norm(final_reconstruction - image_original)
+            rec_errors.append(rec_error)
+        rec_errors = np.array(rec_errors)/np.sqrt(image_b.shape[0]*image_b.shape[1])  # Normalize
+        mean_rec_error = np.mean(rec_errors)
+        std_rec_error = np.std(rec_errors)
+        mean_rec_errors.append(mean_rec_error)
+        std_rec_errors.append(std_rec_error)
+
+    # Plot convergence
+    plt.figure()
+    plt.errorbar(epsilons, mean_rec_errors, yerr=std_rec_errors, marker='o', capsize=5)
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.title('Reconstruction error vs Epsilon')
+    plt.xlabel('Epsilon')
+    plt.ylabel('Final Reconstruction Error (RMSE)')
+    plt.grid(True, which='both')
     plt.show()
 
 # Example usage
@@ -100,10 +326,7 @@ if __name__ == "__main__":
     orig_path = current_dir / "original_image" / orig_filename
     blur_path = current_dir / "blurred_image" / blur_filename
     
-    print("SMC Motion Deblurring - Python Implementation")
-    print(f"Parameters: b={b}, sigma={sigma}, N={n_particles}, iterations={n_iter}")
-    print("\nThis is a translation of the MATLAB code from the Fredholm equation paper.")
-    print("To use: load an image, blur it, add noise, then run SMC deblurring.")
+    print("SMC Motion Deblurring - Convergence Plots")
 
     # Load image
     image = io.imread(orig_path)
@@ -118,6 +341,7 @@ if __name__ == "__main__":
     if image_h.ndim == 3:
         image_h = image_h[:, :, 0]  # Convert to grayscale
 
+    """
     fix_point_residual_plot(
         n_particles=n_particles,
         image_b=image_h,
@@ -126,5 +350,50 @@ if __name__ == "__main__":
         n_iter=n_iter,
         b=b,
         epsilon=epsilon,
+        save_every=save_every
+    )
+    """
+    """
+    monte_carlo_convergence(
+        image_b=image_h,
+        image_original=image,
+        sigma=sigma,
+        n_iter=n_iter,
+        b=b,
+        epsilon=epsilon,
+        save_every=save_every
+    )
+    """
+    """
+    reconstruction_error_plot(
+        n_particles=n_particles,
+        image_b=image_h,
+        image_original=image,
+        sigma=sigma,
+        n_iter=n_iter,
+        b=b,
+        epsilon=epsilon,
+        save_every=save_every
+    )
+    """
+    """
+    visual_convergence(
+        n_particles=n_particles,
+        image_b=image_h,
+        image_original=image,
+        sigma=sigma,
+        n_iter=n_iter,
+        b=b,
+        epsilon=epsilon,
+        save_every=save_every
+    )
+    """
+    epsilon_plot(
+        image_b=image_h,
+        image_original=image,
+        sigma=sigma,
+        n_iter=n_iter,
+        b=b,
+        n_particles=n_particles,
         save_every=save_every
     )

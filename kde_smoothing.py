@@ -50,7 +50,7 @@ def _gaussian_kde_numba(eval_points, x_particles, y_particles, weights, bw_x, bw
     return density
 
 
-def gaussian_kde(eval_points, x_particles, y_particles, weights, bw_x, bw_y):
+def gaussian_kde(eval_points, x_particles, y_particles, weights, bw_x, bw_y, verbose=True):
     """
     Implement weighted KDE with anisotropic bandwidth
     """
@@ -60,12 +60,12 @@ def gaussian_kde(eval_points, x_particles, y_particles, weights, bw_x, bw_y):
     weights = np.ascontiguousarray(weights, dtype=np.float64)
 
     density = _gaussian_kde_numba(eval_points, x_particles, y_particles, weights, bw_x, bw_y)
-
-    print(f"Density range: [{density.min():.6e}, {density.max():.6e}]")
+    if verbose:
+        print(f"Density range: [{density.min():.6e}, {density.max():.6e}]")
     return density
 
 
-def reconstruct_image_from_particles(x_particles, y_particles, weights, image_shape, epsilon):
+def reconstruct_image_from_particles(x_particles, y_particles, weights, image_shape, epsilon, verbose=True):
     """
     Reconstruct image from particles using KDE - matches MATLAB exactly
     
@@ -100,9 +100,10 @@ def reconstruct_image_from_particles(x_particles, y_particles, weights, image_sh
     bw_x = np.sqrt(epsilon ** 2 + optimal_bandwidth_ess(x_particles, weights) ** 2)
     bw_y = np.sqrt(epsilon ** 2 + optimal_bandwidth_ess(y_particles, weights) ** 2)
 
-    print(f"Bandwidths: bw_x={bw_x:.6f}, bw_y={bw_y:.6f}")
+    if verbose:
+        print(f"Bandwidths: bw_x={bw_x:.6f}, bw_y={bw_y:.6f}")
 
-    density = gaussian_kde(eval_points, x_particles, y_particles, weights, bw_x, bw_y)
+    density = gaussian_kde(eval_points, x_particles, y_particles, weights, bw_x, bw_y, verbose=verbose)
 
     reconstructed = density.reshape((height, width))
     reconstructed = (reconstructed - reconstructed.min()) / (reconstructed.max() - reconstructed.min() + 1e-10)

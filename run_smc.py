@@ -82,7 +82,7 @@ if __name__ == "__main__":
     )
 
     start = time.perf_counter()
-    x_particles, y_particles, weights, ess_history, reconstruction_errors, _ = smc_algo.run()
+    x_particles, y_particles, weights, ess_history, reconstruction_errors, f_hist, fix_point_errors = smc_algo.run()
     end = time.perf_counter()
     print(f"SMC deblurring completed in {end - start:.2f} seconds.")
     
@@ -102,6 +102,16 @@ if __name__ == "__main__":
         plt.title('Reconstruction Error over Iterations')
         plt.xlabel('Iteration')
         plt.ylabel('Reconstruction Error (L2 Norm)')
+        plt.grid()
+        plt.show()
+
+    if fix_point_errors:
+        plt.figure()
+        iterations_fp, errors_fp = zip(*fix_point_errors)
+        plt.plot(iterations_fp, errors_fp, marker='o', color='orange')
+        plt.title('Fixed Point Residual in blurred space over Iterations')
+        plt.xlabel('Iteration')
+        plt.ylabel('Fixed Point Residual (L2 Norm)')
         plt.grid()
         plt.show()
 

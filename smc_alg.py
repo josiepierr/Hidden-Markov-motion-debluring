@@ -2,6 +2,8 @@ import numpy as np
 from scipy.stats import norm
 from kde_smoothing import reconstruct_image_from_particles
 from numba import njit, prange
+from blur import blurred_image
+
 
 def pinky(y_in, x_in, image, n_samples):
     """
@@ -117,7 +119,7 @@ def weight_update_numba(y_samples, x_particles, y_particles, weights, h_n, b, si
 
 
 class SMCAlgorithm:
-    def __init__(self, n_particles, image, original, sigma, n_iter, b, epsilon, save_every=10):
+    def __init__(self, n_particles, image, original, sigma, n_iter, b, epsilon, save_every=10, use_stop_crit=False, verbose=True):
         """
         SMC for motion deblurring
         
@@ -145,9 +147,10 @@ class SMCAlgorithm:
         self.img_shape = image.shape
         self.n_iter = n_iter
         self.epsilon = epsilon
+        self.f_hist = []
         self.reconstruction_errors = []
-        self.fix_point_errors = []
-        self.save_every = save_every  # Save reconstruction error every n iterations
+        self.save_every = save_every  # Save reconstruction every save_every iterations
+        self.verbose = verbose
 
         # Get dimension of image
         H, W = self.img_shape
@@ -173,19 +176,37 @@ class SMCAlgorithm:
         self.W[0, :] = 1.0 / n_particles
 
         self.n = 0  # Current iteration
-        self.previous_reconstructed = reconstruct_image_from_particles(
+        previous_reconstructed = reconstruct_image_from_particles(
                     self.x[self.n, :],
                     self.y[self.n, :],
                     self.W[self.n, :],
                     self.img_shape,
-                    self.epsilon
+                    self.epsilon,
+                    verbose=self.verbose
                 ) # For fix-point error calculation
+        self.prev_hat_h = blurred_image(
+            previous_reconstructed,
+            b=self.b * W / 2,  # Convert back to pixel units
+            sigma=self.sigma
+        )  # For stopping criterion
+        self.delta_hat_h_hist = []  # For plotting purposes (fix-point residual in blurred space)
+        self.use_stop_crit = use_stop_crit # Whether to use stopping criterion
+        self.zeta_hist = []  # For stopping criterion
+        self.zeta_hist.append(self.zeta(previous_reconstructed))
+        self.check_m : int = 10 # Number of zeta values to keep for variance calculation
 
+        self.min_hist : int = 15  # Minimum iterations before checking stopping criterion
+
+    def zeta(self, sharp_image):
+        return float(np.sum(sharp_image**2))
+    
+    def _print(self, msg):
+        if self.verbose:
+            print(msg)
 
     def step(self):
         self.n += 1
-        print(f'Iteration {self.n}/{self.n_iter}')
-
+        self._print(f'Iteration {self.n}/{self.n_iter}')
         # Get N samples from blurred image
         h_sample = pinky(self.y_in, self.x_in, self.image, self.n_particles)
         
@@ -194,7 +215,7 @@ class SMCAlgorithm:
         
         # RESAMPLING
         if ess < self.n_particles / 2:
-            print(f'Resampling at Iteration {self.n+1}')
+            self._print(f'Resampling at Iteration {self.n+1}')
             indices = mult_resample(self.W[self.n-1, :], self.n_particles)
             self.x[self.n, :] = self.x[self.n-1, indices]
             self.y[self.n, :] = self.y[self.n-1, indices]
@@ -249,14 +270,33 @@ class SMCAlgorithm:
                     self.y[self.n, :],
                     self.W[self.n, :],
                     self.img_shape,
-                    self.epsilon
+                    self.epsilon,
+                    verbose=self.verbose
                 )
+                self.f_hist.append((self.n, reconstructed_image))
                 error = np.linalg.norm(reconstructed_image - self.original)
-                fix_point_error = np.linalg.norm(reconstructed_image - self.previous_reconstructed)
-                self.previous_reconstructed = reconstructed_image
-                print(f'Reconstruction error at iteration {self.n}: {error:.6f}')
-                print(f'Fix-point error at iteration {self.n}: {fix_point_error:.6f}')
                 self.reconstruction_errors.append((self.n, error))
-                self.fix_point_errors.append((self.n, fix_point_error))
+                self._print(f'Reconstruction error at iteration {self.n}: {error:.6f}')
+
+                # stopping criterion
+                hat_h = blurred_image(
+                    reconstructed_image,
+                    b=self.b * self.img_shape[1] / 2,  # Convert back to pixel units
+                    sigma=self.sigma
+                )
+                delta_hat_h = np.sum((hat_h - self.prev_hat_h)**2)
+                self._print(f'Fix-point residual in blurred space at iteration {self.n}: {delta_hat_h:.6f}')
+                self.prev_hat_h = hat_h
+                self.delta_hat_h_hist.append((self.n, delta_hat_h))
+
+                if self.use_stop_crit:
+                    zeta_curr = self.zeta(reconstructed_image)
+                    self.zeta_hist.append(zeta_curr)
+                    if len(self.zeta_hist) >= self.min_hist and len(self.zeta_hist) >= self.check_m:
+                        var_zeta = float(np.var(np.array(self.zeta_hist[-self.check_m:])))
+                        if np.isfinite(delta_hat_h) and delta_hat_h < var_zeta:
+                            self._print(f'Stopping criterion met at iteration {self.n}.')
+                            break
+
         ess_history = 1.0 / np.sum(self.W**2, axis=1)
-        return self.x, self.y, self.W, ess_history, self.reconstruction_errors, self.fix_point_errors
+        return self.x, self.y, self.W, ess_history, self.reconstruction_errors, self.f_hist, self.delta_hat_h_hist
