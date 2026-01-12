@@ -146,4 +146,3 @@ if __name__ == "__main__":
     imsave(output_path, noisy_uint8)
 
     print(f"Saved result to {output_path}")
-    
