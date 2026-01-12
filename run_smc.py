@@ -88,10 +88,10 @@ if __name__ == "__main__":
     
     # Plot ESS history
     plt.figure()
-    plt.plot(ess_history)
+    plt.plot(np.array(ess_history) / n_particles)
     plt.title('Effective Sample Size over Iterations')
     plt.xlabel('Iteration')
-    plt.ylabel('ESS')
+    plt.ylabel('ESS/N')
     plt.grid()
     plt.show()
 

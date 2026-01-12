@@ -11,6 +11,55 @@ from smc_alg import SMCAlgorithm
 import argparse
 from pathlib import Path
 
+def fix_point_residual_plot(n_particles, image_b, image_original, sigma, n_iter, b, epsilon, save_every):
+
+    seeds = np.arange(1, 11)
+    fix_point_errors_all = []
+    errors_all = []
+    iterations = None
+    for seed in seeds:
+        np.random.seed(seed)
+        smc_algo = SMCAlgorithm(
+            n_particles=n_particles,
+            image=image_b,
+            original=image_original,
+            sigma=sigma,
+            n_iter=n_iter,
+            b=b,
+            epsilon=epsilon,
+            save_every=save_every
+        )
+        x_particles, y_particles, weights, ess_history, reconstruction_errors, fix_point_errors = smc_algo.run()
+        fix_p_errors = [err for (_, err) in fix_point_errors]
+        errors_all.append([err for (_, err) in reconstruction_errors])
+        fix_point_errors_all.append(fix_p_errors)
+        if iterations is None:
+            iterations = [it for (it, _) in fix_point_errors]
+
+    errors_all = np.array(errors_all)  # shape (n_seeds, n_records)
+    mean_errors = np.mean(errors_all, axis=0)
+    std_errors = np.std(errors_all, axis=0)
+    # Reconstruction error plot (mean+std over seeds)
+    plt.figure()
+    plt.errorbar(iterations, mean_errors, yerr=std_errors, marker='o', capsize=5)
+    plt.title('Reconstruction Error over Iterations')
+    plt.xlabel('Iteration')
+    plt.ylabel('Reconstruction Error (L2 Norm)')
+    plt.grid()
+    plt.show()
+    
+    fix_point_errors_all = np.array(fix_point_errors_all)  # shape (n_seeds, n_records)
+    mean_fix_point_errors = np.mean(fix_point_errors_all, axis=0)
+    std_fix_point_errors = np.std(fix_point_errors_all, axis=0)
+    # Fix-point residual plot (mean+std over seeds)
+    plt.figure()
+    plt.errorbar(iterations, mean_fix_point_errors, yerr=std_fix_point_errors, marker='o', capsize=5)
+    plt.title('Fix-point Residual over Iterations')
+    plt.xlabel('Iteration')
+    plt.ylabel('Fix-point Residual (L2 Norm)')
+    plt.grid()
+    plt.show()
+
 # Example usage
 if __name__ == "__main__":
     # Set random seed for reproducibility
@@ -69,49 +118,13 @@ if __name__ == "__main__":
     if image_h.ndim == 3:
         image_h = image_h[:, :, 0]  # Convert to grayscale
 
-    # Run SMC deblurring
-    smc_algo = SMCAlgorithm(
+    fix_point_residual_plot(
         n_particles=n_particles,
-        image=image_h,
-        original=image,
+        image_b=image_h,
+        image_original=image,
         sigma=sigma,
         n_iter=n_iter,
         b=b,
         epsilon=epsilon,
         save_every=save_every
     )
-    x_particles, y_particles, weights, ess_history, reconstruction_errors, fix_point_errors = smc_algo.run()
-    print("SMC deblurring completed.")
-
-    plt.figure()
-    iterations, errors = zip(*fix_point_errors)
-    plt.plot(iterations, errors, marker='o')
-    plt.title('ISE between consecutive reconstructions')
-    plt.xlabel('Iteration')
-    plt.ylabel('Reconstruction Error (L2 Norm)')
-    plt.grid()
-    plt.show()
-
-    # Reconstruct image from final particles
-    reconstructed_image = reconstruct_image_from_particles(
-        x_particles[-1, :],  # Last iteration x coordinates
-        y_particles[-1, :],  # Last iteration y coordinates  
-        weights[-1, :],      # Last iteration weights
-        image.shape,
-        epsilon
-    )
-    # Display original, blurred, and reconstructed images
-    plt.figure(figsize=(15, 5))
-    plt.subplot(1, 3, 1)
-    plt.imshow(image, cmap='gray', vmin=0, vmax=1)
-    plt.title('Original Image')
-    plt.axis('off')
-    plt.subplot(1, 3, 2)
-    plt.imshow(image_h, cmap='gray', vmin=0, vmax=1)
-    plt.title('Blurred Image')
-    plt.axis('off')
-    plt.subplot(1, 3, 3)
-    plt.imshow(reconstructed_image, cmap='gray', vmin=0, vmax=1)
-    plt.title('Reconstructed Image (SMC)')
-    plt.axis('off')
-    plt.show()
