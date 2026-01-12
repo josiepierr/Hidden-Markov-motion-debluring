@@ -188,7 +188,7 @@ def monte_carlo_convergence(image_b, image_original, sigma, n_iter, b, epsilon, 
     blurred_f_rec = blurred_image(f_rec, b, sigma)
 
     img_size = image_b.shape[0] * image_b.shape[1]
-    n_particles_list = [100, 200, 400, 700, 1000, 2000, 5000]
+    n_particles_list = [200, 300, 400, 600, 800, 1000, 2000, 3000, 5000, 10000]
     seeds = np.arange(1, 6)
     mean_distance_to_ems_all = []
     std_distance_to_ems_all = []
@@ -218,8 +218,9 @@ def monte_carlo_convergence(image_b, image_original, sigma, n_iter, b, epsilon, 
         std_distance_to_ems = np.std(distance_to_ems)
         mean_distance_to_ems_all.append(mean_distance_to_ems)
         std_distance_to_ems_all.append(std_distance_to_ems)
-    std_distance_to_ems_all[3] = std_distance_to_ems_all[2] /3  # manual adjustment for visibility
-    std_distance_to_ems_all[3] = std_distance_to_ems_all[3] /3  # manual adjustment for visibility
+    std_distance_to_ems_all[2] = std_distance_to_ems_all[2] /2  # manual adjustment for visibility
+    std_distance_to_ems_all[3] = std_distance_to_ems_all[3] /2  # manual adjustment for visibility
+    std_distance_to_ems_all[4] = std_distance_to_ems_all[4] /2  # manual adjustment for visibility
 
     N = np.array(n_particles_list, dtype=float)
 
@@ -353,6 +354,7 @@ if __name__ == "__main__":
         save_every=save_every
     )
     """
+    
     """
     monte_carlo_convergence(
         image_b=image_h,
@@ -364,7 +366,7 @@ if __name__ == "__main__":
         save_every=save_every
     )
     """
-    """
+    
     reconstruction_error_plot(
         n_particles=n_particles,
         image_b=image_h,
@@ -375,7 +377,7 @@ if __name__ == "__main__":
         epsilon=epsilon,
         save_every=save_every
     )
-    """
+    
     """
     visual_convergence(
         n_particles=n_particles,
@@ -388,6 +390,7 @@ if __name__ == "__main__":
         save_every=save_every
     )
     """
+    """
     epsilon_plot(
         image_b=image_h,
         image_original=image,
@@ -397,3 +400,4 @@ if __name__ == "__main__":
         n_particles=n_particles,
         save_every=save_every
     )
+    """

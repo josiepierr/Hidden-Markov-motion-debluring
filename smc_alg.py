@@ -83,6 +83,7 @@ def hNn_numba(y_samples, x_particles, y_particles, weights, b, sigma):
     return h_n
 
 
+
 @njit(parallel=True, fastmath=True)
 def weight_update_numba(y_samples, x_particles, y_particles, weights, h_n, b, sigma):
     """
@@ -119,7 +120,7 @@ def weight_update_numba(y_samples, x_particles, y_particles, weights, h_n, b, si
 
 
 class SMCAlgorithm:
-    def __init__(self, n_particles, image, original, sigma, n_iter, b, epsilon, save_every=10, use_stop_crit=False, verbose=True):
+    def __init__(self, n_particles, image, original, sigma, n_iter, b, epsilon, save_every=10, m_x_denominator = None, use_stop_crit=False, verbose=True):
         """
         SMC for motion deblurring
         
@@ -151,6 +152,7 @@ class SMCAlgorithm:
         self.reconstruction_errors = []
         self.save_every = save_every  # Save reconstruction every save_every iterations
         self.verbose = verbose
+        self.m_x_denominator = m_x_denominator if m_x_denominator is not None else n_particles
 
         # Get dimension of image
         H, W = self.img_shape
