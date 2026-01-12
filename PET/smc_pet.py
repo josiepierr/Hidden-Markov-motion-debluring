@@ -300,7 +300,7 @@ def main():
     noisyR = noisyR / (noisyR.max() + 1e-300)
 
     # Parameters (paper-like)
-    Niter = 10        # for quick tests; then increase to 100 if needed
+    Niter = 100       # for quick tests; then increase to 100 if needed
     N = 20000            # paper uses 20000
     epsilon = 1e-3       # smoothing parameter
     sigma = 0.02         # alignment std (paper PET uses small variance; MATLAB uses 0.02)
@@ -313,8 +313,8 @@ def main():
     )
 
     # Plot selected iterations (keep those <= Niter)
-    showIter = [1, 5, Niter]
-    #showIter = [1, 5, 10, 15, 20, 50, 70, Niter]
+    #showIter = [1, 5, Niter]
+    showIter = [1, 5, 10, 15, 20, 50, 70, Niter]
     showIter = [it for it in showIter if it <= Niter]
 
     evalX = np.linspace(-0.75 + 1/pixels, 0.75 - 1/pixels, pixels)
