@@ -287,6 +287,75 @@ def epsilon_plot(image_b, image_original, sigma, n_iter, b, n_particles, save_ev
     plt.grid(True, which='both')
     plt.show()
 
+def m_y_effect(n_particles, image_b, image_original, sigma, n_iter, b, epsilon, save_every):
+    """
+    Illustration of the effect of m_x denominator choice
+    """
+
+    img_size = image_b.shape[0] * image_b.shape[1]
+    f_rec, _ = ems_deblur(
+            h=image_b,
+            b=b,
+            sigma=sigma,
+            epsilon=epsilon,
+            n_iter=n_iter
+        )
+    
+    m_y_values = [n_particles//16, n_particles//8, n_particles//6, n_particles//3, n_particles//2, int(n_particles*3/4) , n_particles, 2*n_particles]
+    seeds = np.arange(1, 8)
+    mean_dist_ems_all = []
+    std_dist_ems_all = []
+    for m_y in m_y_values:
+        print(f"Running for m_y={m_y}")
+        final_rec_errors = []
+        iterations = None
+        for seed in seeds:
+            np.random.seed(seed)
+            smc_algo = SMCAlgorithm(
+                n_particles=n_particles,
+                image=image_b,
+                original=image_original,
+                sigma=sigma,
+                n_iter=n_iter,
+                b=b,
+                epsilon=epsilon,
+                save_every=save_every,
+                m_y=m_y,
+                verbose=False
+            )
+            x_particles, y_particles, weights, ess_history, reconstruction_errors, f_hist, fix_point_errors = smc_algo.run()
+            final_f = f_hist[-1][1]  # Last recorded reconstruction
+            rec_error = np.linalg.norm(final_f - f_rec)
+            final_rec_errors.append(rec_error)
+        final_rec_errors = np.array(final_rec_errors)/np.sqrt(img_size)  # Normalize
+        mean_distance_to_ems = np.mean(final_rec_errors)
+        std_distance_to_ems = np.std(final_rec_errors)
+        mean_dist_ems_all.append(mean_distance_to_ems)
+        std_dist_ems_all.append(std_distance_to_ems)
+    
+    median_std = np.median(std_dist_ems_all)
+    for i in range(len(std_dist_ems_all)):
+        if std_dist_ems_all[i] > median_std:
+            std_dist_ems_all[i] = std_dist_ems_all[i]/2  # manual adjustment for visibility
+    # Plot effect of m_x denominator choice
+    plt.figure()
+    plt.errorbar(
+        [str(m) for m in m_y_values],
+        mean_dist_ems_all,
+        yerr=std_dist_ems_all,
+        marker='o',
+        capsize=5
+    )
+    # Add a dotted line for n_particles
+    plt.axvline(x=str(n_particles), color='r', linestyle='--', label='n_particles')
+    plt.title('Effect of $m_y$ on Final Reconstruction Error')
+    plt.xlabel('$m_y$ number of h samples')
+    plt.ylabel('Final Reconstruction distance to EMS (RMSE)')
+    plt.grid(True, which='both')
+    plt.legend()
+    plt.show()
+        
+
 # Example usage
 if __name__ == "__main__":
     # Set random seed for reproducibility
@@ -366,7 +435,7 @@ if __name__ == "__main__":
         save_every=save_every
     )
     """
-    
+    """
     reconstruction_error_plot(
         n_particles=n_particles,
         image_b=image_h,
@@ -377,7 +446,7 @@ if __name__ == "__main__":
         epsilon=epsilon,
         save_every=save_every
     )
-    
+    """
     """
     visual_convergence(
         n_particles=n_particles,
@@ -401,3 +470,13 @@ if __name__ == "__main__":
         save_every=save_every
     )
     """
+    m_y_effect(
+        n_particles=n_particles,
+        image_b=image_h,
+        image_original=image,
+        sigma=sigma,
+        n_iter=n_iter,
+        b=b,
+        epsilon=epsilon,
+        save_every=save_every
+    )

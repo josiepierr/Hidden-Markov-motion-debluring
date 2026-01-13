@@ -63,12 +63,13 @@ def hNn_numba(y_samples, x_particles, y_particles, weights, b, sigma):
     which is an approximation of the integral f_n(z) g(y_j | z) dz
     """
     n_particles = x_particles.shape[0]
-    h_n = np.zeros(n_particles, dtype=np.float64)
+    n_samples = y_samples.shape[0]
+    h_n = np.zeros(n_samples, dtype=np.float64)
     inv_b = 1.0 / b
     inv_sigma = 1.0 / sigma
     norm_const = 1.0 / (np.sqrt(2.0 * np.pi) * sigma)
 
-    for j in prange(n_particles):
+    for j in prange(n_samples):
         y0 = y_samples[j, 0]
         x0 = y_samples[j, 1]
         acc = 0.0
@@ -90,6 +91,7 @@ def weight_update_numba(y_samples, x_particles, y_particles, weights, h_n, b, si
     Numba-accelerated weight update. Avoids SciPy and large N×N allocations.
     """
     n_particles = x_particles.shape[0]
+    n_samples = y_samples.shape[0]
     new_weights = np.zeros(n_particles, dtype=np.float64)
     inv_b = 1.0 / b
     norm_const = 1.0 / (np.sqrt(2.0 * np.pi) * sigma)
@@ -98,7 +100,7 @@ def weight_update_numba(y_samples, x_particles, y_particles, weights, h_n, b, si
     for i in prange(n_particles):
         acc = 0.0
         # Average over all y_samples (j)
-        for j in range(n_particles):
+        for j in range(n_samples):
             dy = y_samples[j, 0] - y_particles[i]
             # inline Normal pdf
             normal_part = norm_const * np.exp(-0.5 * (dy / sigma) * (dy / sigma))
@@ -106,7 +108,7 @@ def weight_update_numba(y_samples, x_particles, y_particles, weights, h_n, b, si
             uniform_part = inv_b if (dx <= b * 0.5 and dx >= -b * 0.5) else 0.0
             denom = h_n[j] + 1e-10
             acc += (normal_part * uniform_part) / denom
-        potential = acc / n_particles  # mean over j
+        potential = acc / n_samples  # mean over j
         # guard against NaN (rare with our denom, but keep parity)
         if np.isnan(potential):
             potential = 0.0
@@ -120,7 +122,7 @@ def weight_update_numba(y_samples, x_particles, y_particles, weights, h_n, b, si
 
 
 class SMCAlgorithm:
-    def __init__(self, n_particles, image, original, sigma, n_iter, b, epsilon, save_every=10, m_x_denominator = None, use_stop_crit=False, verbose=True):
+    def __init__(self, n_particles, image, original, sigma, n_iter, b, epsilon, save_every=10, m_y = None, use_stop_crit=False, verbose=True):
         """
         SMC for motion deblurring
         
@@ -152,7 +154,7 @@ class SMCAlgorithm:
         self.reconstruction_errors = []
         self.save_every = save_every  # Save reconstruction every save_every iterations
         self.verbose = verbose
-        self.m_x_denominator = m_x_denominator if m_x_denominator is not None else n_particles
+        self.m_y = m_y if m_y is not None else n_particles  # Default m_y to n_particles
 
         # Get dimension of image
         H, W = self.img_shape
@@ -210,7 +212,7 @@ class SMCAlgorithm:
         self.n += 1
         self._print(f'Iteration {self.n}/{self.n_iter}')
         # Get N samples from blurred image
-        h_sample = pinky(self.y_in, self.x_in, self.image, self.n_particles)
+        h_sample = pinky(self.y_in, self.x_in, self.image, self.m_y)
         
         # Calculate ESS
         ess = 1.0 / np.sum(self.W[self.n-1, :]**2)
@@ -226,6 +228,7 @@ class SMCAlgorithm:
             self.x[self.n, :] = self.x[self.n-1, :]
             self.y[self.n, :] = self.y[self.n-1, :]
             self.W[self.n, :] = self.W[self.n-1, :]
+
 
         # Compute h^N_n for each y_j
         h_n = hNn_numba(h_sample, self.x[self.n, :], self.y[self.n, :], self.W[self.n, :], self.b, self.sigma)
